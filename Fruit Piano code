@@ -1,0 +1,70 @@
+import utime
+from MPR121 import init_mpr121, read_touch, PBUZZER
+
+# --- PIN CONFIGURATIONS ---
+# The GPIO pin where your passive buzzer signal wire is connected
+BUZZER_PIN = 15
+
+# --- PIANO KEY SCALE CONFIGURATION ---
+# Map electrode index numbers (0 to 7) to fruit/vegetable keys
+# We build a full C-Major scale across 8 channels:
+NOTE_FREQUENCIES = {
+    0: 262,  # Electrode 0 -> C4 (e.g., Apple)
+    1: 294,  # Electrode 1 -> D4 (e.g., Banana)
+    2: 330,  # Electrode 2 -> E4 (e.g., Carrot)
+    3: 349,  # Electrode 3 -> F4 (e.g., Potato)
+    4: 392,  # Electrode 4 -> G4 (e.g., Lemon)
+    5: 440,  # Electrode 5 -> A4 (e.g., Orange)
+    6: 494,  # Electrode 6 -> B4 (e.g., Cucumber)
+    7: 523   # Electrode 7 -> C5 (e.g., Tomato)
+}
+
+NOTE_NAMES = {
+    0: "C4", 1: "D4", 2: "E4", 3: "F4",
+    4: "G4", 5: "A4", 6: "B4", 7: "C5"
+}
+
+# --- INITIALIZATION ---
+print("=========================================")
+print("  Initializing Fruit Piano Hardware...   ")
+print("=========================================")
+
+# Call your library initialization block to configure registers
+init_mpr121()
+
+# Keep track of what was touched in the last loop to prevent repeating notes
+last_touched_state = 0
+
+print("\n🍎 Ready! Touch your fruits to play music! 🍌")
+print("=========================================")
+
+# --- MAIN RUNTIME LOOP ---
+while True:
+    # Read the 12-bit binary integer from your library function
+    current_touched = read_touch()
+    
+    # Scan through our 8 mapped fruit channels
+    for channel in range(8):
+        # Create a bitmask to isolate the specific channel bit
+        channel_bit = 1 << channel
+        
+        # Check if the channel is currently touched right now
+        is_touched = current_touched & channel_bit
+        # Check if the channel was already touched during the last loop cycle
+        was_touched = last_touched_state & channel_bit
+        
+        # Trigger note ONLY if it's a fresh press (touched now, but wasn't before)
+        if is_touched and not was_touched:
+            name = NOTE_NAMES[channel]
+            frequency = NOTE_FREQUENCIES[channel]
+            
+            print(f"🎵 Fruit Channel [{channel}] Pressed! Playing: {name} ({frequency} Hz)")
+            
+            # Fire your library's buzzer block (pin, frequency, duration)
+            PBUZZER(BUZZER_PIN, frequency, 150)
+            
+    # Save the current state to memory for comparison in the next frame cycle
+    last_touched_state = current_touched
+    
+    # High refresh polling break to make the piano feel instantly responsive
+    utime.sleep_ms(10)
